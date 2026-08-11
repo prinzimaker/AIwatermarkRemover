@@ -53,7 +53,7 @@ Questa sezione conta quanto le altre, perché il nome del repository promette pi
 
 ### Come si usa
 
-Apri `index.html` nel browser. Oppure, se hai attivato GitHub Pages sul repository:
+Apri `index.html` nel browser. Oppure usa direttamente:
 
 ```
 https://prinzimaker.github.io/AIwatermarkRemover/
@@ -164,7 +164,7 @@ This section matters as much as the others, because the repository name promises
 
 ### Usage
 
-Open `index.html` in a browser, or, with GitHub Pages enabled:
+Open `index.html` in a browser, or use the following link:
 
 ```
 https://prinzimaker.github.io/AIwatermarkRemover/
