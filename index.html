@@ -4,7 +4,712 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Filigrana — simulatore didattico di watermarking AI</title>
+<style><!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filigrana — simulatore didattico di analisi stilistica</title>
 <style>
+  :root{
+    --ink:#101318; --ink-soft:#4A525E; --paper:#EDF0F3; --panel:#FFFFFF; --rule:#C6CDD6;
+    --mark:#D6006E; --mark-bg:#FFE3F0; --warn:#A85B00; --warn-bg:#FCEEDC;
+    --ok:#0F5F63; --ok-bg:#DDECEC; --accent:#2563EB; --accent-bg:#DBEAFE;
+    --radius:2px;
+    --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --display:"Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    background-image:linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size:100% 32px, 32px 100%; background-position:-1px -1px;
+    color:var(--ink); font-family:var(--mono); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{content:"";position:fixed;inset:0;background:var(--paper);opacity:.86;pointer-events:none;z-index:0}
+  .wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+
+  header{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:22px}
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+  h1{font-family:var(--display);font-weight:800;font-size:clamp(38px,7vw,74px);line-height:.92;letter-spacing:-.03em;margin:6px 0 10px}
+  h1 .thin{font-weight:400;color:var(--ink-soft)}
+  .lede{max-width:72ch;color:var(--ink-soft);font-size:13px}
+
+  .panel{background:var(--panel);border:1px solid var(--ink);border-radius:var(--radius);margin-bottom:18px}
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid var(--rule)}
+  .panel-head h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;margin:0;font-weight:700}
+  .meter{font-size:11px;color:var(--ink-soft);white-space:nowrap}
+
+  textarea{width:100%;min-height:280px;border:0;padding:14px;resize:vertical;
+    font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:transparent;outline:none;display:block}
+  textarea::placeholder{color:#9AA3AE}
+
+  .bar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);align-items:center}
+  .bar .sep{flex:1}
+  button{font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.02em;padding:8px 13px;
+    border:1px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:var(--radius);
+    cursor:pointer;transition:background .12s ease,color .12s ease}
+  button:hover{background:var(--ink);color:var(--panel)}
+  button:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+  button.big{font-weight:700;padding:9px 16px}
+  button.verify{background:var(--ink);color:var(--panel)}
+  button.verify:hover{background:var(--mark);border-color:var(--mark)}
+  button.transform{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.transform:hover{background:var(--ink);border-color:var(--ink)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+
+  .options .opt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1px;background:var(--rule)}
+  label.opt{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;background:var(--panel);cursor:pointer}
+  label.opt input{margin:2px 0 0;accent-color:var(--accent);width:15px;height:15px;flex:none}
+  label.opt .t{font-size:12.5px;font-weight:500}
+  label.opt .d{font-size:11px;color:var(--ink-soft);display:block;margin-top:2px;line-height:1.4}
+
+  #report{border-left:6px solid var(--rule)}
+  #report.lv3{border-left-color:var(--mark)}
+  #report.lv2{border-left-color:var(--warn)}
+  #report.lv1{border-left-color:var(--ok)}
+  #report.lv0{border-left-color:var(--accent)}
+  #report.stale{border-left-color:var(--rule);opacity:.62}
+  .rep-body{padding:16px 14px}
+  .headline{font-family:var(--display);font-weight:800;font-size:clamp(22px,3.6vw,34px);line-height:1.05;letter-spacing:-.02em;margin:0 0 8px}
+  .rep-sub{font-size:12.5px;color:var(--ink-soft);max-width:70ch}
+  .rep-sub strong{color:var(--ink)}
+
+  .unreliable{margin-top:10px;padding:9px 11px;border:1px dashed var(--warn);background:var(--warn-bg);
+    font-size:11.5px;color:var(--warn);font-weight:700;display:none}
+  #report.short .unreliable{display:block}
+
+  .score-ring{display:flex;align-items:center;gap:18px;margin:14px 0 4px;flex-wrap:wrap}
+  .ring-wrap{position:relative;width:90px;height:90px;flex:none}
+  .ring-wrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .ring-bg{fill:none;stroke:var(--rule);stroke-width:8}
+  .ring-fill{fill:none;stroke:var(--mark);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .6s ease, stroke .4s ease}
+  .ring-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}
+  .ring-val{font-family:var(--display);font-size:28px;font-weight:800;line-height:1}
+  .ring-lab{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:2px}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin-top:12px}
+  .metric{background:var(--panel);padding:10px 12px}
+  .metric .lab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:700}
+  .metric .val{font-family:var(--display);font-size:20px;font-weight:800;line-height:1.1;margin-top:4px}
+  .metric .note{font-size:10.5px;color:var(--ink-soft);margin-top:2px}
+  .metric.hit .val{color:var(--mark)}
+  .metric.warn .val{color:var(--warn)}
+  .metric.ok .val{color:var(--ok)}
+  .metric.info .val{color:var(--accent)}
+
+  .stale-note{font-size:11.5px;letter-spacing:.04em;color:var(--mark);font-weight:700;margin-top:12px;display:none}
+  #report.stale .stale-note{display:block}
+
+  .viz{padding:14px;overflow-x:auto}
+  .viz-canvas{display:flex;align-items:flex-end;gap:2px;height:120px;padding-top:10px}
+  .viz-bar{flex:1;background:var(--rule);min-width:3px;border-radius:1px 1px 0 0;transition:background .3s,height .4s ease}
+  .viz-bar.hit{background:var(--mark)}
+  .viz-bar.ok{background:var(--ok)}
+
+  .heatmap{display:grid;grid-template-columns:repeat(20,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);padding:1px}
+  .hcell{aspect-ratio:1;background:var(--panel);transition:background .3s}
+  .hcell.wm{background:var(--mark)}
+  .hcell.ok{background:var(--ok)}
+  .hcell.neu{background:var(--rule)}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule)}
+  .split-cell{background:var(--panel);padding:12px}
+  .split-cell h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;font-weight:700}
+  .split-cell pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;line-height:1.6;margin:0;max-height:200px;overflow:auto}
+
+  .empty{padding:14px;color:var(--ink-soft);font-size:12px}
+  footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule);font-size:11px;color:var(--ink-soft);max-width:80ch}
+  footer b{color:var(--ink)}
+  footer p{margin:0 0 9px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:9;background:var(--ink);color:var(--paper);
+    padding:9px 16px;border-radius:var(--radius);font-size:12px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+  @media (max-width:640px){.split{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<base target="_blank">
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Simulazione didattica · nessun dato lascia il browser</div>
+  <h1>Filigrana<span class="thin">.</span></h1>
+  <p class="lede">Questo strumento misura <strong>pattern stilistici</strong> — uniformità delle frasi, densità di connettivi, formule ricorrenti, entropia lessicale — e mostra quanto un testo somigli alla prosa regolare tipica dei modelli linguistici. <strong>Non rileva filigrane.</strong> Una filigrana statistica si verifica ricalcolando le liste di token con la chiave del fornitore, che non è pubblica: nessuna pagina in JavaScript può farlo. Quello che vedi qui è un'euristica di stile, come i cosiddetti rilevatori di testo AI in commercio.</p>
+</header>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Testo di lavoro</h2>
+    <span class="meter" id="meter">0 caratteri · 0 parole</span>
+  </div>
+  <textarea id="txt" spellcheck="false" placeholder="Incolla qui un testo — generato da un LLM o scritto a mano — e premi Analizza…"></textarea>
+  <div class="bar">
+    <button class="big verify" id="btnAnalyze">Analizza stile</button>
+    <button class="big transform" id="btnTransform">Trasforma per rompere</button>
+    <span class="sep"></span>
+    <button id="btnUndo" disabled>Annulla</button>
+    <button id="btnCopy">Copia</button>
+    <button id="btnClear">Svuota</button>
+  </div>
+</div>
+
+<div class="panel" id="report">
+  <div class="panel-head"><h2>Referto stilistico</h2><span class="meter" id="repMeter">nessuna analisi eseguita</span></div>
+  <div class="rep-body">
+    <p class="headline" id="repHead">In attesa.</p>
+    <p class="rep-sub" id="repSub">Incolla il testo e premi <strong>Analizza stile</strong>. Servono almeno 150 parole perché i numeri abbiano senso.</p>
+
+    <div class="unreliable" id="unreliable">Testo troppo breve o troppo poche frasi: il punteggio è indicativo e non va letto come misura.</div>
+
+    <div class="score-ring" id="scoreRing" style="display:none">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 100 100"><circle class="ring-bg" cx="50" cy="50" r="42"/><circle class="ring-fill" id="ringFill" cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="264"/></svg>
+        <div class="ring-text"><div class="ring-val" id="ringVal">—</div><div class="ring-lab">STILE</div></div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div class="metrics" id="metricsBox"></div>
+      </div>
+    </div>
+
+    <p class="stale-note">Il testo è cambiato dopo l'ultima analisi. Premi di nuovo Analizza stile.</p>
+  </div>
+</div>
+
+<div class="panel options">
+  <div class="panel-head"><h2>Cosa deve fare "Trasforma per rompere"</h2><span class="meter">riscrittura stilistica</span></div>
+  <div class="opt-grid">
+    <label class="opt"><input type="checkbox" id="o_syn" checked>
+      <span><span class="t">Sostituisci connettivi e avverbi</span>
+      <span class="d">"Tuttavia", "inoltre", "pertanto", "d'altra parte" diventano alternative meno prevedibili.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_split" checked>
+      <span><span class="t">Spezza e ricombina le frasi</span>
+      <span class="d">Frasi troppo regolari vengono spezzate o unite. Altera la distribuzione delle lunghezze.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_punct" checked>
+      <span><span class="t">Varia la punteggiatura</span>
+      <span class="d">Sostituisce virgole con punti o punto e virgola, aggiunge incisi.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_order" checked>
+      <span><span class="t">Riordina le proposizioni</span>
+      <span class="d">Inverte l'ordine di alcune frasi contigue.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_trim" checked>
+      <span><span class="t">Taglia le chiusure formali</span>
+      <span class="d">Rimuove formule conclusive ripetitive ("In conclusione", "È importante notare che").</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_case">
+      <span><span class="t">Aggiungi variazioni stilistiche</span>
+      <span class="d">Inserisce brevi incisi e domande retoriche. Aumenta l'irregolarità.</span></span></label>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Pattern delle lunghezze frase</h2><span class="meter">magenta = entro il 25% dalla media</span></div>
+  <div class="viz" id="vizBox"><p class="empty">Nessuna analisi ancora.</p></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Mappa delle frasi</h2><span class="meter">una cella per frase reale</span></div>
+  <div class="viz" id="heatmapBox"><p class="empty">Nessuna analisi ancora.</p></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Confronto prima / dopo</h2><span class="meter" id="compareMeter">—</span></div>
+  <div class="split" id="compareBox">
+    <div class="split-cell"><h3>Originale</h3><pre id="preOrig">—</pre></div>
+    <div class="split-cell"><h3>Trasformato</h3><pre id="preTrans">—</pre></div>
+  </div>
+</div>
+
+<footer>
+  <p><b>Cosa misura davvero.</b> Sei euristiche statistiche calcolate nel browser: coefficiente di variazione delle lunghezze di frase, densità di connettivi ogni 100 parole, formule di apertura e chiusura ogni 1000 parole, bigrammi ripetuti al netto dei funzionali, entropia di Shannon normalizzata e MATTR su finestra mobile. Nessuna chiamata di rete, nessun modello interrogato.</p>
+  <p><b>Cosa non misura.</b> Non verifica filigrane. Una filigrana statistica sulla scelta dei token è codificata in quali parole il modello ha scelto, e si rileva solo ricalcolando le liste con la chiave segreta del fornitore. Anthropic, dal 2 agosto 2026, incorpora una filigrana nel testo generato e metadati C2PA firmati nei file, in applicazione dell'art. 50(2) dell'AI Act; i dettagli tecnici del rilevamento non sono ancora pubblici. Questa pagina non tocca né l'una né gli altri.</p>
+  <p><b>Come leggere il punteggio.</b> Un testo umano formale — un articolo tecnico, una relazione, un bando — segna alto. Un testo generato e poi riscritto segna basso. Il punteggio dice quanto una prosa è regolare, non chi l'ha scritta: è esattamente il motivo per cui questo tipo di misura non costituisce prova, né a carico né a discarico.</p>
+</footer>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ========== DIZIONARI ========== */
+  const CONNECTIVES = {
+    "tuttavia":"però", "però":"tuttavia", "inoltre":"anche", "anche":"inoltre",
+    "pertanto":"quindi", "quindi":"pertanto", "dunque":"allora", "allora":"dunque",
+    "d'altra parte":"invece", "invece":"d'altra parte", "ciononostante":"nonostante ciò",
+    "nonostante ciò":"ciononostante", "ad esempio":"per fare un esempio", "per fare un esempio":"ad esempio",
+    "in conclusione":"per concludere", "per concludere":"in conclusione", "infine":"alla fine",
+    "alla fine":"infine", "in sintesi":"in breve", "in breve":"in sintesi",
+    "è importante notare che":"nota bene", "nota bene":"è importante notare che",
+    "va sottolineato":"bisogna dire", "bisogna dire":"va sottolineato",
+    "dal punto di vista":"secondo", "secondo":"dal punto di vista",
+    "in generale":"di solito", "di solito":"in generale", "spesso":"frequentemente",
+    "frequentemente":"spesso", "tendenzialmente":"in genere", "in genere":"tendenzialmente"
+  };
+
+  const FORMULAIC = [
+    /In conclusione[,;:]?\s*/gi,
+    /Per concludere[,;:]?\s*/gi,
+    /È importante notare che\s*/gi,
+    /Va sottolineato che\s*/gi,
+    /In sintesi[,;:]?\s*/gi,
+    /In generale[,;:]?\s*/gi,
+    /Dal punto di vista\s+/gi
+  ];
+
+  const STOP = new Set(["di","a","da","in","con","su","per","tra","fra","il","lo","la","i","gli","le","un","uno","una","e","o","ma","che","è","del","della","dei","delle","al","alla","ai","alle","nel","nella","si","non","come","più","anche"]);
+
+  const MIN_WORDS = 150;
+
+  /* ========== ANALISI ========== */
+
+  function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+  function scale(v, lo, hi){
+    if (hi === lo) return 0;
+    return clamp01((v - lo) / (hi - lo)) * 100;
+  }
+
+  function tokenize(text){
+    return text.toLowerCase()
+      .replace(/[^a-zàèéìòùçáíóúäöüß\s]/gi, " ")
+      .split(/\s+/).filter(w => w.length > 0);
+  }
+
+  function sentences(text){
+    return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+  }
+
+  function normalizedEntropy(tokens){
+    if (tokens.length < 20) return null;
+    const freq = new Map();
+    tokens.forEach(t => freq.set(t, (freq.get(t) || 0) + 1));
+    const total = tokens.length;
+    let h = 0;
+    for (const c of freq.values()){
+      const p = c / total;
+      h -= p * Math.log2(p);
+    }
+    const hmax = Math.log2(freq.size);
+    return hmax > 0 ? h / hmax : null;
+  }
+
+  function movingTTR(tokens, window){
+    window = window || 100;
+    if (tokens.length < window){
+      return tokens.length ? new Set(tokens).size / tokens.length : null;
+    }
+    let sum = 0, n = 0;
+    for (let i = 0; i + window <= tokens.length; i += 10){
+      sum += new Set(tokens.slice(i, i + window)).size / window;
+      n++;
+    }
+    return n ? sum / n : null;
+  }
+
+  function sentenceUniformity(sents){
+    const lens = sents
+      .map(s => s.split(/\s+/).filter(w => w.length > 0).length)
+      .filter(n => n > 0);
+    if (lens.length < 5) return null;
+    const mean = lens.reduce((a,b) => a+b, 0) / lens.length;
+    if (mean <= 0) return null;
+    const varc = lens.reduce((a,b) => a + (b-mean)*(b-mean), 0) / lens.length;
+    const cv = Math.sqrt(varc) / mean;
+    return { score: scale(cv, 0.70, 0.25), cv: cv, mean: mean, lens: lens };
+  }
+
+  function connectiveDensity(text, dict){
+    const words = text.split(/\s+/).filter(w => w.length > 0).length;
+    if (!words) return null;
+    let hits = 0;
+    for (const k of Object.keys(dict)){
+      const re = new RegExp("\\b" + k.replace(/'/g, "['\u2019]").replace(/\s+/g, "\\s+") + "\\b", "gi");
+      const m = text.match(re);
+      if (m) hits += m.length;
+    }
+    const per100 = (hits / words) * 100;
+    return { score: scale(per100, 1.0, 5.0), per100: per100, hits: hits };
+  }
+
+  function formulaicDensity(text, patterns){
+    const words = text.split(/\s+/).filter(w => w.length > 0).length;
+    if (!words) return null;
+    let hits = 0;
+    patterns.forEach(re => {
+      const m = text.match(re);
+      if (m) hits += m.length;
+    });
+    const per1000 = (hits / words) * 1000;
+    return { score: scale(per1000, 0, 6), per1000: per1000, hits: hits };
+  }
+
+  function repetitionDensity(tokens){
+    if (tokens.length < 60) return null;
+    const seen = new Set();
+    let repeats = 0, considered = 0;
+    for (let i = 0; i < tokens.length - 1; i++){
+      const a = tokens[i], b = tokens[i+1];
+      if (STOP.has(a) && STOP.has(b)) continue;
+      considered++;
+      const bg = a + " " + b;
+      if (seen.has(bg)) repeats++; else seen.add(bg);
+    }
+    if (!considered) return null;
+    const ratio = repeats / considered;
+    return { score: scale(ratio, 0.02, 0.20), ratio: ratio };
+  }
+
+  function analyze(text){
+    const toks  = tokenize(text);
+    const sents = sentences(text);
+    const words = toks.length;
+
+    const uni  = sentenceUniformity(sents);
+    const conn = connectiveDensity(text, CONNECTIVES);
+    const form = formulaicDensity(text, FORMULAIC);
+    const rep  = repetitionDensity(toks);
+    const nent = normalizedEntropy(toks);
+    const ttr  = movingTTR(toks, 100);
+
+    const entScore = nent === null ? null : scale(nent, 0.95, 0.82);
+
+    const parts = [
+      { v: uni  ? uni.score  : null, w: 0.30 },
+      { v: conn ? conn.score : null, w: 0.20 },
+      { v: form ? form.score : null, w: 0.15 },
+      { v: rep  ? rep.score  : null, w: 0.15 },
+      { v: entScore,                 w: 0.20 }
+    ].filter(p => p.v !== null);
+
+    const wsum = parts.reduce((a,p) => a + p.w, 0);
+    const score = wsum ? Math.round(parts.reduce((a,p) => a + p.v * p.w, 0) / wsum) : null;
+
+    return {
+      score: score,
+      reliable: words >= MIN_WORDS && parts.length >= 4,
+      words: words,
+      uni: uni, conn: conn, form: form, rep: rep,
+      nent: nent, entScore: entScore, ttr: ttr,
+      sLens: uni ? uni.lens : [],
+      sents: sents, toks: toks
+    };
+  }
+
+  /* ========== TRASFORMAZIONE ==========
+     Lasciata identica all'originale, su richiesta. Non è stata
+     corretta né ritarata: contiene ancora il bug del word boundary
+     nel ramo opt.syn, dove "\b" è il backspace U+0008. */
+
+  function transform(text, opt){
+    let out = text;
+
+    if (opt.trim){
+      FORMULAIC.forEach(re => { out = out.replace(re, ""); });
+    }
+
+    if (opt.syn){
+      for (const [k, v] of Object.entries(CONNECTIVES)){
+        const re = new RegExp("\b" + k.replace(/\s+/g, "\s+") + "\b", "gi");
+        let count = 0;
+        out = out.replace(re, (m) => { count++; return count % 2 === 1 ? v : m; });
+      }
+    }
+
+    if (opt.punct){
+      out = out.replace(/\,\s+/g, (m, offset) => {
+        const r = Math.random();
+        if (r < 0.15) return "; ";
+        if (r < 0.25) return ". ";
+        return m;
+      });
+      out = out.replace(/(che|il quale|la quale)/gi, (m, offset) => {
+        return Math.random() < 0.1 ? m + ", del resto," : m;
+      });
+    }
+
+    if (opt.split){
+      const sents = sentences(out);
+      const mixed = [];
+      for (let i = 0; i < sents.length; i++){
+        const s = sents[i];
+        const words = s.split(/\s+/).filter(w => w.length > 0);
+        if (words.length > 18 && Math.random() < 0.6){
+          const mid = Math.floor(words.length / 2);
+          mixed.push(words.slice(0, mid).join(" ") + ". " + words.slice(mid).join(" "));
+        } else if (words.length < 6 && i < sents.length - 1 && Math.random() < 0.4){
+          mixed.push(s + " " + sents[++i]);
+        } else {
+          mixed.push(s);
+        }
+      }
+      out = mixed.join(" ");
+    }
+
+    if (opt.order){
+      const sents = sentences(out);
+      if (sents.length >= 3){
+        for (let i = 0; i < sents.length - 1; i += 2){
+          if (Math.random() < 0.3){
+            [sents[i], sents[i+1]] = [sents[i+1], sents[i]];
+          }
+        }
+        out = sents.join(" ");
+      }
+    }
+
+    if (opt.case){
+      out = out.replace(/(ad esempio|per esempio)/gi, (m) => {
+        return Math.random() < 0.3 ? "per fare un esempio concreto" : m;
+      });
+      const sents = sentences(out);
+      const withQuestions = [];
+      for (let i = 0; i < sents.length; i++){
+        withQuestions.push(sents[i]);
+        if (i % 5 === 3 && Math.random() < 0.3){
+          withQuestions.push(" E se invece non fosse così?");
+        }
+      }
+      out = withQuestions.join(" ");
+    }
+
+    out = out.replace(/\s+/g, " ").trim();
+    return out;
+  }
+
+  /* ========== UI ========== */
+
+  const $ = id => document.getElementById(id);
+  const txt = $("txt");
+  let verified = false;
+  let undoStack = [];
+  let lastOriginal = "";
+  let lastTransformed = "";
+
+  function updateMeter(){
+    const s = txt.value;
+    const words = s.split(/\s+/).filter(w => w.length > 0).length;
+    $("meter").textContent = s.length.toLocaleString("it-IT") + " caratteri · " + words.toLocaleString("it-IT") + " parole";
+  }
+
+  function markStale(){
+    if (!verified) return;
+    $("report").classList.add("stale");
+    $("repMeter").textContent = "referto non aggiornato";
+  }
+
+  function toast(msg){
+    const el = $("toast");
+    el.textContent = msg; el.classList.add("on");
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2400);
+  }
+
+  function setRing(score){
+    const circle = $("ringFill");
+    const circumference = 264;
+    circle.style.strokeDashoffset = circumference - (score / 100) * circumference;
+    $("ringVal").textContent = score;
+    if (score >= 65) circle.style.stroke = "var(--mark)";
+    else if (score >= 35) circle.style.stroke = "var(--warn)";
+    else circle.style.stroke = "var(--ok)";
+  }
+
+  function buildMetrics(a){
+    const cls = v => v === null ? "" : (v > 65 ? "hit" : (v > 35 ? "warn" : "ok"));
+    const pct = v => v === null ? "n/d" : Math.round(v) + "%";
+
+    const rows = [
+      { lab:"Uniformità frasi", val: a.uni ? pct(a.uni.score) : "n/d",
+        note: a.uni ? "CV " + a.uni.cv.toFixed(2) + " · media " + a.uni.mean.toFixed(1) + " parole" : "servono 5 frasi",
+        c: cls(a.uni ? a.uni.score : null) },
+      { lab:"Connettivi", val: a.conn ? pct(a.conn.score) : "n/d",
+        note: a.conn ? a.conn.per100.toFixed(1) + " ogni 100 parole" : "—",
+        c: cls(a.conn ? a.conn.score : null) },
+      { lab:"Formule", val: a.form ? pct(a.form.score) : "n/d",
+        note: a.form ? a.form.hits + " occorrenze" : "—",
+        c: cls(a.form ? a.form.score : null) },
+      { lab:"Ripetizione", val: a.rep ? pct(a.rep.score) : "n/d",
+        note: a.rep ? (a.rep.ratio*100).toFixed(1) + "% bigrammi ripetuti" : "testo troppo corto",
+        c: cls(a.rep ? a.rep.score : null) },
+      { lab:"Entropia norm.", val: a.nent === null ? "n/d" : a.nent.toFixed(3),
+        note: "1,000 = massima varietà", c: cls(a.entScore) },
+      { lab:"MATTR", val: a.ttr === null ? "n/d" : (a.ttr*100).toFixed(1) + "%",
+        note: "diversità su finestra 100", c: "info" }
+    ];
+
+    let h = "";
+    rows.forEach(m => {
+      h += '<div class="metric ' + m.c + '"><div class="lab">' + m.lab +
+           '</div><div class="val">' + m.val +
+           '</div><div class="note">' + m.note + '</div></div>';
+    });
+    $("metricsBox").innerHTML = h;
+  }
+
+  function buildViz(a){
+    if (!a.sLens.length){
+      $("vizBox").innerHTML = '<p class="empty">Servono almeno 5 frasi.</p>';
+      return;
+    }
+    const max = Math.max.apply(null, a.sLens);
+    const mean = a.uni.mean;
+    let bars = '<div class="viz-canvas">';
+    a.sLens.slice(0, 60).forEach(len => {
+      const h = max > 0 ? Math.round((len / max) * 100) : 0;
+      const cls = Math.abs(len - mean) < mean * 0.25 ? "hit" : "ok";
+      bars += '<div class="viz-bar ' + cls + '" style="height:' + h + '%" title="' + len + ' parole"></div>';
+    });
+    bars += '</div>';
+    if (a.sLens.length > 60) bars += '<p class="empty" style="margin-top:4px">Prime 60 frasi mostrate.</p>';
+    $("vizBox").innerHTML = bars;
+  }
+
+  function buildHeatmap(a){
+    const box = $("heatmapBox");
+    if (!a.sLens.length){
+      box.innerHTML = '<p class="empty">Servono almeno 5 frasi.</p>';
+      return;
+    }
+    const mean = a.uni.mean;
+    let h = '<div class="heatmap">';
+    a.sLens.forEach(len => {
+      const dev = Math.abs(len - mean) / mean;
+      const c = dev < 0.20 ? "wm" : (dev < 0.50 ? "neu" : "ok");
+      h += '<div class="hcell ' + c + '" title="' + len + ' parole"></div>';
+    });
+    h += '</div>';
+    h += '<p class="empty" style="margin-top:8px">Una cella per frase. Magenta = lunghezza entro il 20% dalla media, grigio = scarto intermedio, verde = frase fuori scala. Il colore riflette la frase reale.</p>';
+    box.innerHTML = h;
+  }
+
+  function analyzeAndShow(){
+    const src = txt.value;
+    const rep = $("report");
+    rep.classList.remove("stale","short","lv0","lv1","lv2","lv3");
+    verified = true;
+
+    if (!src.trim()){
+      $("repHead").textContent = "Non c'è testo da esaminare.";
+      $("repSub").innerHTML = "Incolla qualcosa nella casella e riprova.";
+      $("repMeter").textContent = "casella vuota";
+      $("scoreRing").style.display = "none";
+      $("vizBox").innerHTML = '<p class="empty">Nessuna analisi ancora.</p>';
+      $("heatmapBox").innerHTML = '<p class="empty">Nessuna analisi ancora.</p>';
+      return;
+    }
+
+    const a = analyze(src);
+
+    if (a.score === null){
+      $("repHead").textContent = "Testo insufficiente.";
+      $("repSub").innerHTML = "Nessuna metrica è calcolabile su questo frammento. Servono almeno una ventina di parole e cinque frasi.";
+      $("repMeter").textContent = a.words + " parole";
+      $("scoreRing").style.display = "none";
+      return;
+    }
+
+    $("scoreRing").style.display = "";
+    setRing(a.score);
+    buildMetrics(a);
+    buildViz(a);
+    buildHeatmap(a);
+    if (!a.reliable) rep.classList.add("short");
+
+    let head, sub, lv;
+    if (a.score >= 65){
+      lv = "lv3";
+      head = "Prosa molto regolare.";
+      sub = "Punteggio <strong>" + a.score + "/100</strong>. Frasi di lunghezza omogenea, connettivi densi, formule ricorrenti. È il profilo dei testi generati — e anche quello delle relazioni tecniche, dei bandi e della manualistica scritti a mano.";
+    } else if (a.score >= 40){
+      lv = "lv2";
+      head = "Regolarità intermedia.";
+      sub = "Punteggio <strong>" + a.score + "/100</strong>. Struttura formale ma non uniforme. Questa fascia non distingue nulla: ci cadono sia i testi umani curati sia quelli generati e ritoccati.";
+    } else if (a.score >= 20){
+      lv = "lv1";
+      head = "Prosa irregolare.";
+      sub = "Punteggio <strong>" + a.score + "/100</strong>. Variabilità sufficiente a non attivare le euristiche principali.";
+    } else {
+      lv = "lv0";
+      head = "Prosa molto irregolare.";
+      sub = "Punteggio <strong>" + a.score + "/100</strong>. Entropia alta, lunghezze disomogenee, nessuna formula ricorrente.";
+    }
+    rep.classList.add(lv);
+    $("repHead").textContent = head;
+    $("repSub").innerHTML = sub;
+    $("repMeter").textContent = a.words + " parole · analizzato alle " + new Date().toLocaleTimeString("it-IT");
+  }
+
+  function doTransform(){
+    const src = txt.value;
+    if (!src){ toast("Non c'è testo da trasformare."); return; }
+    const opt = {
+      syn: $("o_syn").checked,
+      split: $("o_split").checked,
+      punct: $("o_punct").checked,
+      order: $("o_order").checked,
+      trim: $("o_trim").checked,
+      case: $("o_case").checked
+    };
+    const out = transform(src, opt);
+    if (out === src){ toast("Il testo non è cambiato: prova ad attivare più opzioni."); return; }
+    undoStack.push(src);
+    if (undoStack.length > 20) undoStack.shift();
+    $("btnUndo").disabled = false;
+    lastOriginal = src;
+    lastTransformed = out;
+    txt.value = out;
+    updateMeter();
+    $("preOrig").textContent = lastOriginal;
+    $("preTrans").textContent = lastTransformed;
+    $("compareMeter").textContent = "confronto aggiornato";
+    toast("Trasformazione applicata.");
+    analyzeAndShow();
+  }
+
+  $("btnAnalyze").addEventListener("click", analyzeAndShow);
+  $("btnTransform").addEventListener("click", doTransform);
+
+  $("btnUndo").addEventListener("click", () => {
+    if (!undoStack.length) return;
+    txt.value = undoStack.pop();
+    $("btnUndo").disabled = undoStack.length === 0;
+    updateMeter(); analyzeAndShow(); toast("Trasformazione annullata.");
+  });
+
+  $("btnCopy").addEventListener("click", async () => {
+    if (!txt.value) return toast("Non c'è niente da copiare.");
+    try { await navigator.clipboard.writeText(txt.value); toast("Testo copiato."); }
+    catch(e){ txt.select(); document.execCommand("copy"); toast("Testo copiato."); }
+  });
+
+  $("btnClear").addEventListener("click", () => {
+    txt.value = ""; updateMeter(); verified = false;
+    $("report").classList.remove("stale","short","lv0","lv1","lv2","lv3");
+    $("repHead").textContent = "In attesa.";
+    $("repSub").innerHTML = "Incolla il testo e premi <strong>Analizza stile</strong>.";
+    $("repMeter").textContent = "nessuna analisi eseguita";
+    $("scoreRing").style.display = "none";
+    $("vizBox").innerHTML = '<p class="empty">Nessuna analisi ancora.</p>';
+    $("heatmapBox").innerHTML = '<p class="empty">Nessuna analisi ancora.</p>';
+    $("preOrig").textContent = "—";
+    $("preTrans").textContent = "—";
+    $("compareMeter").textContent = "—";
+    txt.focus();
+  });
+
+  txt.addEventListener("input", () => { updateMeter(); markStale(); });
+
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); analyzeAndShow(); }
+  });
+
+  updateMeter();
+})();
+</script>
+</body>
+</html>
   :root{
     --ink:#101318; --ink-soft:#4A525E; --paper:#EDF0F3; --panel:#FFFFFF; --rule:#C6CDD6;
     --mark:#D6006E; --mark-bg:#FFE3F0; --warn:#A85B00; --warn-bg:#FCEEDC;
