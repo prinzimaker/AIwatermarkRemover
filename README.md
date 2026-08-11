@@ -1,4 +1,4 @@
-# AIwatermarkRemover
+[# AIwatermarkRemover
 
 **Rileva e rimuove i caratteri Unicode invisibili dai testi generati dalle AI. Una pagina HTML, nessuna dipendenza, nessun dato in rete.**
 
@@ -227,3 +227,4 @@ MIT — see [LICENSE](LICENSE).
 ### Author
 
 **Aldo Prinzi** — [aldo.prinzi.it](https://aldo.prinzi.it)
+](https://github.com/prinzimaker/AIwatermarkRemover/blob/main/README.md)
