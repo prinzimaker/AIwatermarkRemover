@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setaccio — verifica e ripulisce il testo dai caratteri invisibili</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#101318; --ink-soft:#4A525E; --paper:#EDF0F3; --panel:#FFFFFF; --rule:#C6CDD6;
+    --mark:#D6006E; --mark-bg:#FFE3F0; --warn:#A85B00; --warn-bg:#FCEEDC;
+    --ok:#0F5F63; --ok-bg:#DDECEC; --radius:2px;
+    --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --display:"Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    background-image:linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size:100% 32px, 32px 100%; background-position:-1px -1px;
+    color:var(--ink); font-family:var(--mono); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{content:"";position:fixed;inset:0;background:var(--paper);opacity:.86;pointer-events:none;z-index:0}
+  .wrap{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:32px 20px 80px}
+
+  header{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:22px}
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+  h1{font-family:var(--display);font-weight:800;font-size:clamp(38px,7vw,74px);line-height:.92;letter-spacing:-.03em;margin:6px 0 10px}
+  h1 .thin{font-weight:400;color:var(--ink-soft)}
+  .lede{max-width:66ch;color:var(--ink-soft);font-size:13px}
+
+  .panel{background:var(--panel);border:1px solid var(--ink);border-radius:var(--radius);margin-bottom:18px}
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid var(--rule)}
+  .panel-head h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;margin:0;font-weight:700}
+  .meter{font-size:11px;color:var(--ink-soft);white-space:nowrap}
+
+  textarea{width:100%;min-height:300px;border:0;padding:14px;resize:vertical;
+    font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:transparent;outline:none;display:block}
+  textarea::placeholder{color:#9AA3AE}
+
+  .bar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);align-items:center}
+  .bar .sep{flex:1}
+  button{font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.02em;padding:8px 13px;
+    border:1px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:var(--radius);
+    cursor:pointer;transition:background .12s ease,color .12s ease}
+  button:hover{background:var(--ink);color:var(--panel)}
+  button:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+  button.big{font-weight:700;padding:9px 16px}
+  button.verify{background:var(--ink);color:var(--panel)}
+  button.verify:hover{background:var(--mark);border-color:var(--mark)}
+  button.transform{background:var(--mark);border-color:var(--mark);color:#fff}
+  button.transform:hover{background:var(--ink);border-color:var(--ink)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+
+  .options .opt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1px;background:var(--rule)}
+  label.opt{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;background:var(--panel);cursor:pointer}
+  label.opt input{margin:2px 0 0;accent-color:var(--mark);width:15px;height:15px;flex:none}
+  label.opt .t{font-size:12.5px;font-weight:500}
+  label.opt .d{font-size:11px;color:var(--ink-soft);display:block;margin-top:2px;line-height:1.4}
+
+  /* Referto */
+  #report{border-left:6px solid var(--rule)}
+  #report.lv3{border-left-color:var(--mark)}
+  #report.lv2{border-left-color:var(--warn)}
+  #report.lv1{border-left-color:var(--ok)}
+  #report.stale{border-left-color:var(--rule);opacity:.62}
+  .rep-body{padding:16px 14px}
+  .headline{font-family:var(--display);font-weight:800;font-size:clamp(22px,3.6vw,34px);line-height:1.05;letter-spacing:-.02em;margin:0 0 8px}
+  .rep-sub{font-size:12.5px;color:var(--ink-soft);max-width:70ch}
+  .rep-sub strong{color:var(--ink)}
+  .scale{display:flex;gap:1px;margin:14px 0 4px;background:var(--rule);border:1px solid var(--rule)}
+  .step{flex:1;background:var(--panel);padding:9px 10px;opacity:.42}
+  .step .lab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:700}
+  .step .val{font-family:var(--display);font-size:20px;font-weight:800;line-height:1.1;margin-top:2px}
+  .step.hit{opacity:1}
+  .step.hit.a{background:var(--mark-bg);color:var(--mark)}
+  .step.hit.b{background:var(--warn-bg);color:var(--warn)}
+  .step.hit.c{background:var(--ok-bg);color:var(--ok)}
+  .stale-note{font-size:11.5px;letter-spacing:.04em;color:var(--mark);font-weight:700;margin-top:12px;display:none}
+  #report.stale .stale-note{display:block}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);
+    font-weight:700;padding:8px 12px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{padding:7px 12px;border-bottom:1px solid #EAEDF1;vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .cp{color:var(--mark);font-weight:700;white-space:nowrap}
+  .act{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius);white-space:nowrap}
+  .act.rm{background:var(--mark-bg);color:var(--mark)}
+  .act.sub{background:var(--ok-bg);color:var(--ok)}
+  .act.keep{background:#EEF1F4;color:var(--ink-soft)}
+  .sev{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .sev.a{color:var(--mark)} .sev.b{color:var(--warn)} .sev.c{color:var(--ink-soft)}
+
+  .reveal{padding:14px;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:2.1;max-height:340px;overflow:auto}
+  .chip{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.08em;background:var(--mark);color:#fff;
+    padding:1px 4px;border-radius:var(--radius);vertical-align:middle;margin:0 1px;transform:translateY(-1px)}
+  .chip.sub{background:var(--ok)}
+  .chip.warn{background:var(--warn)}
+  .empty{padding:14px;color:var(--ink-soft);font-size:12px}
+
+  footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule);font-size:11px;color:var(--ink-soft);max-width:80ch}
+  footer b{color:var(--ink)}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:9;background:var(--ink);color:var(--paper);
+    padding:9px 16px;border-radius:var(--radius);font-size:12px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+  .drop{outline:2px dashed var(--mark);outline-offset:-6px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Analisi locale · nessun dato lascia il browser</div>
+  <h1>Setaccio<span class="thin">.</span></h1>
+  <p class="lede">Incolla il testo, premi <strong>Verifica testo AI</strong> per sapere cosa contiene, <strong>Trasforma</strong> per ripulirlo nella stessa casella, e verifica di nuovo. La trasformazione è UTF-8 → ASCII → UTF-8: caratteri invisibili rimossi, spazi e punteggiatura riportati all'equivalente ASCII.</p>
+</header>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Testo di lavoro</h2>
+    <span class="meter" id="meter">0 caratteri · 0 byte</span>
+  </div>
+  <textarea id="txt" spellcheck="false" placeholder="Incolla qui il testo (o trascina un file sulla pagina)…"></textarea>
+  <div class="bar">
+    <button class="big verify" id="btnVerify">Verifica testo AI</button>
+    <button class="big transform" id="btnTransform">Trasforma</button>
+    <span class="sep"></span>
+    <button id="btnUndo" disabled>Annulla</button>
+    <button id="btnCopy">Copia</button>
+    <button id="btnDownload">Scarica .txt</button>
+    <button id="btnFile">Apri file…</button>
+    <button id="btnClear">Svuota</button>
+    <input type="file" id="file" accept=".txt,.md,.csv,.json,.html,text/*" hidden>
+  </div>
+</div>
+
+<div class="panel" id="report">
+  <div class="panel-head"><h2>Referto</h2><span class="meter" id="repMeter">nessuna verifica eseguita</span></div>
+  <div class="rep-body">
+    <p class="headline" id="repHead">In attesa.</p>
+    <p class="rep-sub" id="repSub">Incolla il testo e premi <strong>Verifica testo AI</strong>. L'esame è deterministico: conta i caratteri Unicode che nel testo non si vedono, non stima lo stile.</p>
+    <div class="scale">
+      <div class="step" id="s1"><div class="lab">Nascosti</div><div class="val" id="v1">—</div></div>
+      <div class="step" id="s2"><div class="lab">Omoglifi</div><div class="val" id="v2">—</div></div>
+      <div class="step" id="s3"><div class="lab">Tipografici</div><div class="val" id="v3">—</div></div>
+      <div class="step" id="s4"><div class="lab">Non ASCII ok</div><div class="val" id="v4">—</div></div>
+    </div>
+    <p class="stale-note">Il testo è cambiato dopo l'ultima verifica. Premi di nuovo Verifica testo AI.</p>
+  </div>
+</div>
+
+<div class="panel options">
+  <div class="panel-head"><h2>Cosa deve fare "Trasforma"</h2><span class="meter">incide anche su cosa segnala il referto</span></div>
+  <div class="opt-grid">
+    <label class="opt"><input type="checkbox" id="o_invis" checked>
+      <span><span class="t">Rimuovi i caratteri invisibili</span>
+      <span class="d">Larghezza zero, unione parole, marcatori bidirezionali, selettori di variazione, caratteri tag, BOM, trattino morbido.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_space" checked>
+      <span><span class="t">Normalizza gli spazi</span>
+      <span class="d">Spazio unificatore, spazi tipografici di ogni larghezza e spazio ideografico diventano uno spazio normale.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_punct" checked>
+      <span><span class="t">Punteggiatura tipografica → ASCII</span>
+      <span class="d">Virgolette curve, caporali, trattini lunghi, puntini di sospensione, apici tipografici.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_homo" checked>
+      <span><span class="t">Correggi gli omoglifi</span>
+      <span class="d">Lettere cirilliche o greche identiche alle latine (а, е, о, р, с…) riportate all'alfabeto latino. Disattivalo se il testo è davvero in russo o greco.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_nfkc" checked>
+      <span><span class="t">Normalizzazione NFKC</span>
+      <span class="d">Scioglie legature, caratteri a larghezza piena, apici e indici, simboli composti.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_eol" checked>
+      <span><span class="t">Ripulisci le righe</span>
+      <span class="d">Fine riga uniformata a LF e spazi rimossi in coda alle righe.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_strict">
+      <span><span class="t">Solo ASCII, senza eccezioni</span>
+      <span class="d">Toglie anche gli accenti (perché → perche) e ogni carattere fuori dai 128 ASCII. In italiano di solito non lo vuoi.</span></span></label>
+    <label class="opt"><input type="checkbox" id="o_emoji">
+      <span><span class="t">Rimuovi le emoji</span>
+      <span class="d">Elimina pittogrammi e simboli. Indipendente dall'opzione precedente.</span></span></label>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Cosa c'è dentro</h2><span class="meter" id="tblMeter"></span></div>
+  <div id="tableBox"><p class="empty">Nessuna verifica ancora.</p></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Il testo con le tracce in evidenza</h2><span class="meter">le etichette segnano il punto esatto</span></div>
+  <div class="reveal" id="reveal"><span class="empty" style="padding:0">Dopo la verifica, qui il testo viene riscritto marcando ogni carattere sospetto nella posizione in cui si trova.</span></div>
+</div>
+
+<footer>
+  <b>Come leggere il referto.</b> Questa pagina non interroga nessun servizio esterno e non stima se un testo sia scritto da una persona o da un modello: quel tipo di giudizio, oggi, è statistico e sbaglia in entrambe le direzioni. Qui si contano caratteri, che o ci sono o non ci sono.
+  <b>Nascosti</b> sono i caratteri a larghezza zero e i caratteri tag: in un testo digitato a mano non compaiono quasi mai, e i caratteri tag sono l'unico vero canale in cui si può nascondere un messaggio dentro una frase apparentemente normale.
+  <b>Omoglifi</b> sono lettere cirilliche o greche graficamente identiche alle latine: anomale in un testo italiano, ma anche tipiche del copia-incolla dal web.
+  <b>Tipografici</b> sono virgolette curve, lineette lunghe e spazi unificatori: normalissimi in qualunque testo passato da Word o da un CMS, e da soli non indicano nulla.
+  Non mi risulta che Anthropic inserisca una filigrana crittografica nel testo di Claude, e <b>non lo so con certezza</b>: se esistesse e non fosse fatta di caratteri, questa pagina non la vedrebbe e non potrebbe rimuoverla.
+</footer>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= Tabelle ================= */
+
+  const NAMES = {
+    0x00AD:"trattino morbido", 0x034F:"unione grafemi", 0x061C:"marcatore arabo",
+    0x115F:"riempitivo hangul iniziale", 0x1160:"riempitivo hangul mediale",
+    0x17B4:"vocale khmer aq", 0x17B5:"vocale khmer aa",
+    0x180B:"selettore mongolo 1", 0x180C:"selettore mongolo 2", 0x180D:"selettore mongolo 3",
+    0x180E:"separatore vocali mongolo",
+    0x200B:"spazio a larghezza zero", 0x200C:"non-unione a larghezza zero",
+    0x200D:"unione a larghezza zero", 0x200E:"marcatore da sinistra", 0x200F:"marcatore da destra",
+    0x202A:"inserimento LTR", 0x202B:"inserimento RTL", 0x202C:"fine direzione",
+    0x202D:"forzatura LTR", 0x202E:"forzatura RTL",
+    0x2060:"unione parole", 0x2061:"applicazione funzione", 0x2062:"per invisibile",
+    0x2063:"separatore invisibile", 0x2064:"piu invisibile",
+    0x2066:"isolamento LTR", 0x2067:"isolamento RTL", 0x2068:"isolamento primo forte", 0x2069:"fine isolamento",
+    0x206A:"disattiva forme simmetriche", 0x206B:"attiva forme simmetriche",
+    0x206C:"disattiva forma araba", 0x206D:"attiva forma araba",
+    0x206E:"cifre nazionali", 0x206F:"cifre nominali",
+    0x3164:"riempitivo hangul", 0xFEFF:"BOM / spazio unificatore a larghezza zero",
+    0xFFA0:"riempitivo hangul a meta larghezza",
+    0xFFF9:"ancora interlineare", 0xFFFA:"separatore interlineare", 0xFFFB:"fine interlineare",
+    0x00A0:"spazio unificatore", 0x1680:"spazio ogham", 0x2000:"quadratino", 0x2001:"quadrato",
+    0x2002:"spazio en", 0x2003:"spazio em", 0x2004:"terzo di em", 0x2005:"quarto di em",
+    0x2006:"sesto di em", 0x2007:"spazio cifra", 0x2008:"spazio punteggiatura",
+    0x2009:"spazio sottile", 0x200A:"spazio capillare",
+    0x202F:"spazio sottile unificatore", 0x205F:"spazio matematico medio", 0x3000:"spazio ideografico",
+    0x2028:"separatore di riga", 0x2029:"separatore di paragrafo",
+    0x2010:"trattino", 0x2011:"trattino unificatore", 0x2012:"trattino cifra",
+    0x2013:"lineetta en", 0x2014:"lineetta em", 0x2015:"barra orizzontale", 0x2212:"segno meno",
+    0x2018:"apice singolo sinistro", 0x2019:"apice singolo destro", 0x201A:"virgoletta bassa singola",
+    0x201B:"apice singolo rovesciato", 0x201C:"virgolette alte sinistre", 0x201D:"virgolette alte destre",
+    0x201E:"virgolette basse doppie", 0x201F:"virgolette rovesciate",
+    0x2032:"primo", 0x2033:"doppio primo", 0x2035:"primo rovesciato",
+    0x00AB:"caporale aperto", 0x00BB:"caporale chiuso", 0x2039:"caporale singolo aperto", 0x203A:"caporale singolo chiuso",
+    0x2026:"puntini di sospensione", 0x2022:"punto elenco", 0x2023:"triangolo elenco",
+    0x2043:"trattino elenco", 0x00B7:"punto mediano", 0x2044:"barra frazione",
+    0x2122:"marchio", 0x00A9:"copyright", 0x00AE:"marchio registrato", 0x20AC:"euro",
+    0x2192:"freccia destra", 0x2190:"freccia sinistra", 0x2264:"minore o uguale", 0x2265:"maggiore o uguale",
+    0x00D7:"per", 0x00F7:"diviso", 0x2248:"circa uguale", 0x2260:"diverso"
+  };
+
+  const INVISIBLE = new Set([
+    0x00AD,0x034F,0x061C,0x115F,0x1160,0x17B4,0x17B5,0x180B,0x180C,0x180D,0x180E,
+    0x200B,0x200C,0x200D,0x200E,0x200F,
+    0x202A,0x202B,0x202C,0x202D,0x202E,
+    0x2060,0x2061,0x2062,0x2063,0x2064,0x2066,0x2067,0x2068,0x2069,
+    0x206A,0x206B,0x206C,0x206D,0x206E,0x206F,
+    0x3164,0xFEFF,0xFFA0,0xFFF9,0xFFFA,0xFFFB
+  ]);
+
+  function isInvisible(cp){
+    if (INVISIBLE.has(cp)) return true;
+    if (cp >= 0xFE00 && cp <= 0xFE0F) return true;
+    if (cp >= 0xE0100 && cp <= 0xE01EF) return true;
+    if (cp >= 0xE0000 && cp <= 0xE007F) return true;
+    if (cp >= 0x1D173 && cp <= 0x1D17A) return true;
+    if (cp < 0x20 && cp !== 0x09 && cp !== 0x0A) return true;
+    if (cp >= 0x7F && cp <= 0x9F) return true;
+    return false;
+  }
+  function isTagChar(cp){ return cp >= 0xE0000 && cp <= 0xE007F; }
+
+  const SPACES = new Set([0x00A0,0x1680,0x2000,0x2001,0x2002,0x2003,0x2004,0x2005,
+    0x2006,0x2007,0x2008,0x2009,0x200A,0x202F,0x205F,0x3000]);
+
+  const PUNCT = new Map([
+    [0x2010,"-"],[0x2011,"-"],[0x2012,"-"],[0x2013,"-"],[0x2014,"--"],[0x2015,"--"],[0x2212,"-"],
+    [0x2018,"'"],[0x2019,"'"],[0x201A,"'"],[0x201B,"'"],
+    [0x201C,'"'],[0x201D,'"'],[0x201E,'"'],[0x201F,'"'],
+    [0x2032,"'"],[0x2033,'"'],[0x2035,"'"],
+    [0x00AB,'"'],[0x00BB,'"'],[0x2039,"'"],[0x203A,"'"],
+    [0x2026,"..."],[0x2022,"-"],[0x2023,"-"],[0x2043,"-"],[0x25AA,"-"],[0x25CF,"-"],[0x2044,"/"],
+    [0x2028,"\n"],[0x2029,"\n\n"]
+  ]);
+
+  const ASCII_FALLBACK = new Map([
+    [0x00B7,"."],[0x2122,"(TM)"],[0x00A9,"(c)"],[0x00AE,"(R)"],[0x20AC,"EUR"],[0x00A3,"GBP"],
+    [0x00D7,"x"],[0x00F7,"/"],[0x2248,"~"],[0x2260,"!="],[0x2264,"<="],[0x2265,">="],
+    [0x2192,"->"],[0x2190,"<-"],[0x2194,"<->"],[0x00B0,"deg"],[0x00BD,"1/2"],[0x00BC,"1/4"],[0x00BE,"3/4"],
+    [0x00DF,"ss"],[0x00E6,"ae"],[0x00C6,"AE"],[0x0153,"oe"],[0x0152,"OE"],[0x00F8,"o"],[0x00D8,"O"]
+  ]);
+
+  const HOMO = new Map([
+    [0x0410,"A"],[0x0412,"B"],[0x0415,"E"],[0x041A,"K"],[0x041C,"M"],[0x041D,"H"],[0x041E,"O"],
+    [0x0420,"P"],[0x0421,"C"],[0x0422,"T"],[0x0423,"Y"],[0x0425,"X"],[0x0405,"S"],[0x0406,"I"],
+    [0x0408,"J"],[0x04AE,"Y"],
+    [0x0430,"a"],[0x0432,"b"],[0x0435,"e"],[0x043A,"k"],[0x043C,"m"],[0x043D,"h"],[0x043E,"o"],
+    [0x0440,"p"],[0x0441,"c"],[0x0443,"y"],[0x0445,"x"],[0x0455,"s"],[0x0456,"i"],[0x0458,"j"],
+    [0x0391,"A"],[0x0392,"B"],[0x0395,"E"],[0x0396,"Z"],[0x0397,"H"],[0x0399,"I"],[0x039A,"K"],
+    [0x039C,"M"],[0x039D,"N"],[0x039F,"O"],[0x03A1,"P"],[0x03A4,"T"],[0x03A5,"Y"],[0x03A7,"X"],
+    [0x03BF,"o"],[0x03B1,"a"],[0x03BD,"v"],[0x03C1,"p"],[0x03C4,"t"],[0x03C7,"x"],[0x03B9,"i"]
+  ]);
+
+  const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{1F1E6}-\u{1F1FF}]/u;
+
+  function safeNfkc(ch){ try { return ch.normalize("NFKC"); } catch(e){ return ch; } }
+
+  function name(cp){
+    if (NAMES[cp]) return NAMES[cp];
+    if (cp >= 0xFE00 && cp <= 0xFE0F) return "selettore di variazione " + (cp - 0xFDFF);
+    if (cp >= 0xE0100 && cp <= 0xE01EF) return "selettore di variazione supplementare";
+    if (cp >= 0xE0000 && cp <= 0xE007F) return "carattere tag (canale nascosto)";
+    if (cp >= 0x0400 && cp <= 0x04FF) return "lettera cirillica";
+    if (cp >= 0x0370 && cp <= 0x03FF) return "lettera greca";
+    if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F)) return "carattere di controllo";
+    if (cp >= 0x00C0 && cp <= 0x00FF) return "lettera latina accentata";
+    if (cp >= 0x0100 && cp <= 0x024F) return "lettera latina estesa";
+    if (cp >= 0xFF01 && cp <= 0xFF5E) return "carattere a larghezza piena";
+    if (cp >= 0xFB00 && cp <= 0xFB4F) return "legatura tipografica";
+    if (cp >= 0x1F000 && cp <= 0x1FAFF) return "emoji o pittogramma";
+    if (cp >= 0x2600 && cp <= 0x27BF) return "simbolo o dingbat";
+    if (cp >= 0x0300 && cp <= 0x036F) return "segno combinante";
+    return "carattere non ASCII";
+  }
+
+  function hex(cp){ return "U+" + cp.toString(16).toUpperCase().padStart(4,"0"); }
+
+  // severita: 1 = nascosto, 2 = omoglifo, 3 = tipografico, 0 = neutro
+  function severity(cp, ch){
+    if (isInvisible(cp)) return 1;
+    if (HOMO.has(cp)) return 2;
+    if (SPACES.has(cp) || PUNCT.has(cp)) return 3;
+    return 0;
+  }
+
+  /* ================= Motore ================= */
+
+  function process(text, opt){
+    const found = new Map();
+    function note(cp, action, repl){
+      const k = cp + "|" + action;
+      let e = found.get(k);
+      if (!e){ e = {cp:cp, action:action, repl:repl, count:0}; found.set(k, e); }
+      e.count++;
+    }
+
+    let src = text;
+    if (opt.eol) src = src.replace(/\r\n?/g, "\n");
+
+    let out = "";
+    for (const ch of src){
+      const cp = ch.codePointAt(0);
+      if (cp < 0x80 && cp !== 0x7F){ out += ch; continue; }
+
+      if (opt.invis && isInvisible(cp)){ note(cp,"rimosso",""); continue; }
+      if (opt.emoji && EMOJI_RE.test(ch)){ note(cp,"rimosso",""); continue; }
+      if (opt.space && SPACES.has(cp)){ note(cp,"sostituito"," "); out += " "; continue; }
+      if (opt.punct && PUNCT.has(cp)){ const r = PUNCT.get(cp); note(cp,"sostituito",r); out += r; continue; }
+      if (opt.homo && HOMO.has(cp)){ const r = HOMO.get(cp); note(cp,"sostituito",r); out += r; continue; }
+      if (opt.strict){
+        if (ASCII_FALLBACK.has(cp)){ const r = ASCII_FALLBACK.get(cp); note(cp,"sostituito",r); out += r; continue; }
+        let flat = "";
+        try { flat = ch.normalize("NFD").replace(/\p{M}/gu, ""); } catch(e){ flat = ""; }
+        if (flat && /^[\x20-\x7E]+$/.test(flat)){ note(cp,"sostituito",flat); out += flat; continue; }
+        note(cp,"rimosso",""); continue;
+      }
+      if (opt.nfkc){
+        const n = safeNfkc(ch);
+        if (n !== ch){ note(cp,"normalizzato",n); out += n; continue; }
+      }
+      note(cp,"mantenuto",ch);
+      out += ch;
+    }
+
+    if (opt.nfkc){ try { out = out.normalize("NFC"); } catch(e){} }
+    if (opt.eol){
+      out = out.replace(/[ \t]+$/gm, "");
+      out = out.replace(/\n{3,}/g, "\n\n");
+    }
+    return { text: out, found: Array.from(found.values()), prepared: src };
+  }
+
+  /* ================= Verificatore ================= */
+  // Esame indipendente dalle opzioni: conta cosa c'e, non cosa verra tolto.
+
+  function inspect(text){
+    const buckets = {hidden:0, tag:0, homo:0, typo:0, other:0};
+    const detail = new Map();
+    for (const ch of text){
+      const cp = ch.codePointAt(0);
+      if (cp < 0x80) continue;
+      const sev = severity(cp, ch);
+      if (sev === 1){ buckets.hidden++; if (isTagChar(cp)) buckets.tag++; }
+      else if (sev === 2) buckets.homo++;
+      else if (sev === 3) buckets.typo++;
+      else buckets.other++;
+      const e = detail.get(cp) || {cp:cp, sev:sev, count:0};
+      e.count++; detail.set(cp, e);
+    }
+    return {buckets:buckets, detail:Array.from(detail.values())};
+  }
+
+  /* ================= Vista tracce ================= */
+
+  function buildReveal(src){
+    const frag = document.createDocumentFragment();
+    let buf = "", shown = 0;
+    const flush = () => { if (buf){ frag.appendChild(document.createTextNode(buf)); buf = ""; } };
+    for (const ch of src){
+      const cp = ch.codePointAt(0);
+      if (cp < 0x80){ buf += ch; continue; }
+      const sev = severity(cp, ch);
+      if (sev === 0){ buf += ch; continue; }
+      flush();
+      const s = document.createElement("span");
+      s.className = "chip" + (sev === 2 ? " warn" : (sev === 3 ? " sub" : ""));
+      s.textContent = hex(cp);
+      s.title = name(cp);
+      frag.appendChild(s);
+      shown++;
+      if (shown > 4000){ flush(); frag.appendChild(document.createTextNode(" …(elenco troncato)")); break; }
+    }
+    flush();
+    return {frag:frag, shown:shown};
+  }
+
+  /* ================= UI ================= */
+
+  const $ = id => document.getElementById(id);
+  const txt = $("txt");
+  const enc = new TextEncoder();
+  const OPTS = {invis:"o_invis",space:"o_space",punct:"o_punct",homo:"o_homo",nfkc:"o_nfkc",eol:"o_eol",strict:"o_strict",emoji:"o_emoji"};
+  let verified = false;
+  let undoStack = [];
+
+  function readOpts(){ const o = {}; for (const k in OPTS) o[k] = $(OPTS[k]).checked; return o; }
+
+  function updateMeter(){
+    const s = txt.value;
+    $("meter").textContent = s.length.toLocaleString("it-IT") + " caratteri · " + enc.encode(s).length.toLocaleString("it-IT") + " byte";
+  }
+
+  function markStale(){
+    if (!verified) return;
+    $("report").classList.add("stale");
+    $("repMeter").textContent = "referto non aggiornato";
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  function verify(){
+    const src = txt.value;
+    const rep = $("report");
+    rep.classList.remove("stale","lv1","lv2","lv3");
+    verified = true;
+
+    if (!src.trim()){
+      $("repHead").textContent = "Non c'è testo da esaminare.";
+      $("repSub").innerHTML = "Incolla qualcosa nella casella qui sopra e riprova.";
+      $("repMeter").textContent = "casella vuota";
+      ["1","2","3","4"].forEach(i => { $("v"+i).textContent = "—"; $("s"+i).className = "step"; });
+      $("tableBox").innerHTML = '<p class="empty">Nessuna verifica ancora.</p>';
+      $("tblMeter").textContent = "";
+      $("reveal").innerHTML = '<span class="empty" style="padding:0">Niente da mostrare.</span>';
+      return;
+    }
+
+    const r = inspect(src);
+    const b = r.buckets;
+
+    $("v1").textContent = b.hidden; $("s1").className = "step" + (b.hidden ? " hit a" : "");
+    $("v2").textContent = b.homo;   $("s2").className = "step" + (b.homo ? " hit b" : "");
+    $("v3").textContent = b.typo;   $("s3").className = "step" + (b.typo ? " hit c" : "");
+    $("v4").textContent = b.other;  $("s4").className = "step" + (b.other ? " hit" : "");
+
+    let head, sub, lv;
+    if (b.hidden > 0){
+      lv = "lv3";
+      head = b.tag > 0 ? "Canale nascosto presente." : "Caratteri invisibili presenti.";
+      sub = "Il testo contiene <strong>" + b.hidden + "</strong> caratteri che non si vedono ma occupano byte" +
+            (b.tag > 0 ? ", di cui <strong>" + b.tag + "</strong> caratteri tag: quelli servono proprio a trasportare un messaggio dentro una frase apparentemente normale" : "") +
+            ". In un testo digitato a mano non compaiono quasi mai. Premi <strong>Trasforma</strong> per toglierli, poi verifica di nuovo.";
+    } else if (b.homo > 0){
+      lv = "lv2";
+      head = "Nessun carattere invisibile, ma ci sono omoglifi.";
+      sub = "<strong>" + b.homo + "</strong> lettere cirilliche o greche graficamente identiche alle latine. Sono anomale in un testo italiano, ma capitano anche col copia-incolla dal web. Nessuna traccia invisibile.";
+    } else if (b.typo > 0){
+      lv = "lv1";
+      head = "Nessuna traccia nascosta.";
+      sub = "Solo <strong>" + b.typo + "</strong> caratteri tipografici — virgolette curve, lineette lunghe, spazi unificatori. Normalissimi in qualunque testo passato da un editor, e da soli non indicano nulla. Puoi trasformarli in ASCII se ti servono per codice o sistemi legacy.";
+    } else if (b.other > 0){
+      lv = "lv1";
+      head = "Pulito.";
+      sub = "Nessun carattere invisibile, nessun omoglifo, nessun segno tipografico anomalo. Restano <strong>" + b.other + "</strong> caratteri non ASCII del tutto legittimi: accenti e simili.";
+    } else {
+      lv = "lv1";
+      head = "Pulito. Solo ASCII.";
+      sub = "Ogni carattere del testo sta nei 128 ASCII. Non c'è niente di nascosto da togliere.";
+    }
+    rep.classList.add(lv);
+    $("repHead").textContent = head;
+    $("repSub").innerHTML = sub;
+    $("repMeter").textContent = "verificato alle " + new Date().toLocaleTimeString("it-IT");
+
+    // tabella completa con l'azione che "Trasforma" applicherebbe adesso
+    const opt = readOpts();
+    const plan = process(src, opt);
+    const planMap = new Map();
+    plan.found.forEach(f => planMap.set(f.cp, f));
+
+    r.detail.sort((a,b2) => (a.sev === 0 ? 9 : a.sev) - (b2.sev === 0 ? 9 : b2.sev) || b2.count - a.count || a.cp - b2.cp);
+    if (!r.detail.length){
+      $("tableBox").innerHTML = '<p class="empty">Solo caratteri ASCII: niente da segnalare.</p>';
+      $("tblMeter").textContent = "";
+    } else {
+      const sevLab = {1:["a","nascosto"],2:["b","omoglifo"],3:["c","tipografico"],0:["c","legittimo"]};
+      let h = '<table><thead><tr><th>Codice</th><th>Nome</th><th>Classe</th><th>Trasforma fa</th><th>Diventa</th><th class="num">Occorrenze</th></tr></thead><tbody>';
+      for (const d of r.detail){
+        const p = planMap.get(d.cp);
+        const action = p ? p.action : "mantenuto";
+        const cls = action === "rimosso" ? "rm" : (action === "mantenuto" ? "keep" : "sub");
+        let become;
+        if (action === "rimosso") become = "<span style='color:#9AA3AE'>niente</span>";
+        else if (!p) become = "<span style='color:#9AA3AE'>invariato</span>";
+        else if (p.repl === " ") become = "<span style='color:#9AA3AE'>spazio</span>";
+        else if (p.repl === "\n") become = "<span style='color:#9AA3AE'>a capo</span>";
+        else become = "<code>" + escapeHtml(p.repl) + "</code>";
+        const sl = sevLab[d.sev];
+        h += "<tr><td class='cp'>" + hex(d.cp) + "</td><td>" + escapeHtml(name(d.cp)) +
+             "</td><td><span class='sev " + sl[0] + "'>" + sl[1] + "</span></td>" +
+             "<td><span class='act " + cls + "'>" + action + "</span></td><td>" + become +
+             "</td><td class='num'>" + d.count.toLocaleString("it-IT") + "</td></tr>";
+      }
+      h += "</tbody></table>";
+      $("tableBox").innerHTML = h;
+      $("tblMeter").textContent = r.detail.length + " tipi di carattere non ASCII";
+    }
+
+    const rev = $("reveal");
+    rev.innerHTML = "";
+    if (src.length > 60000){
+      rev.innerHTML = '<span class="empty" style="padding:0">Testo troppo lungo per la vista tracce (oltre 60.000 caratteri). Referto e tabella restano validi.</span>';
+    } else {
+      const built = buildReveal(src);
+      if (!built.shown) rev.innerHTML = '<span class="empty" style="padding:0">Niente da marcare: nessun carattere sospetto nel testo.</span>';
+      else rev.appendChild(built.frag);
+    }
+  }
+
+  function transform(){
+    const src = txt.value;
+    if (!src){ toast("Non c'è testo da trasformare."); return; }
+    const r = process(src, readOpts());
+    if (r.text === src){ toast("Il testo era già così: nessuna modifica."); return; }
+    undoStack.push(src);
+    if (undoStack.length > 20) undoStack.shift();
+    $("btnUndo").disabled = false;
+    txt.value = r.text;
+    updateMeter();
+    const removed = r.found.filter(f => f.action === "rimosso").reduce((a,b) => a + b.count, 0);
+    const changed = r.found.filter(f => f.action === "sostituito" || f.action === "normalizzato").reduce((a,b) => a + b.count, 0);
+    toast(removed + " rimossi, " + changed + " sostituiti. Riverifica per conferma.");
+    verify();
+  }
+
+  function toast(msg){
+    const el = $("toast");
+    el.textContent = msg; el.classList.add("on");
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2400);
+  }
+
+  $("btnVerify").addEventListener("click", verify);
+  $("btnTransform").addEventListener("click", transform);
+
+  $("btnUndo").addEventListener("click", () => {
+    if (!undoStack.length) return;
+    txt.value = undoStack.pop();
+    $("btnUndo").disabled = undoStack.length === 0;
+    updateMeter(); verify(); toast("Trasformazione annullata.");
+  });
+
+  txt.addEventListener("input", () => { updateMeter(); markStale(); });
+  for (const k in OPTS) $(OPTS[k]).addEventListener("change", () => { if (verified) verify(); });
+
+  $("btnCopy").addEventListener("click", async () => {
+    if (!txt.value) return toast("Non c'è niente da copiare.");
+    try { await navigator.clipboard.writeText(txt.value); toast("Testo copiato."); }
+    catch(e){ txt.select(); document.execCommand("copy"); toast("Testo copiato."); }
+  });
+
+  $("btnDownload").addEventListener("click", () => {
+    if (!txt.value) return toast("Non c'è niente da scaricare.");
+    const blob = new Blob([txt.value], {type:"text/plain;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "testo-pulito.txt"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  $("btnClear").addEventListener("click", () => { txt.value = ""; updateMeter(); verified = false;
+    $("report").classList.remove("stale","lv1","lv2","lv3");
+    $("repHead").textContent = "In attesa.";
+    $("repSub").innerHTML = "Incolla il testo e premi <strong>Verifica testo AI</strong>.";
+    $("repMeter").textContent = "nessuna verifica eseguita";
+    ["1","2","3","4"].forEach(i => { $("v"+i).textContent = "—"; $("s"+i).className = "step"; });
+    $("tableBox").innerHTML = '<p class="empty">Nessuna verifica ancora.</p>';
+    $("tblMeter").textContent = "";
+    $("reveal").innerHTML = '<span class="empty" style="padding:0">Dopo la verifica, qui il testo viene riscritto marcando ogni carattere sospetto.</span>';
+    txt.focus();
+  });
+
+  $("btnFile").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(t => { txt.value = t; updateMeter(); verify(); toast("Caricato: " + f.name); });
+    e.target.value = "";
+  });
+
+  ["dragenter","dragover"].forEach(ev => document.addEventListener(ev, e => {
+    e.preventDefault(); document.body.classList.add("drop");
+  }));
+  ["dragleave","drop"].forEach(ev => document.addEventListener(ev, e => {
+    e.preventDefault(); if (ev === "drop" || e.relatedTarget === null) document.body.classList.remove("drop");
+  }));
+  document.addEventListener("drop", e => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    f.text().then(t => { txt.value = t; updateMeter(); verify(); toast("Caricato: " + f.name); });
+  });
+
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); verify(); }
+  });
+
+  updateMeter();
+})();
+</script>
+</body>
+</html>
